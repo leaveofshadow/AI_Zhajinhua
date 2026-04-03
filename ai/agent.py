@@ -101,7 +101,7 @@ class Agent:
 
     @staticmethod
     def _action_to_index(action: Action) -> int:
-        """将 Action 映射到策略网络输出索引 (0-7)。"""
+        """将 Action 映射到策略网络输出索引 (0-8)。"""
         at = action.action_type
         if at == ActionType.FOLD:
             return 0
@@ -112,13 +112,12 @@ class Agent:
         elif at == ActionType.LOOK:
             return 7
         elif at == ActionType.COMPARE:
-            return 0  # compare 用 fold 位置近似，后续由 valid_actions 约束
+            return 8
         return 0
 
     @staticmethod
     def _index_to_action(index: int, valid_actions: List[Action]) -> Action:
         """将策略网络输出索引映射回最佳匹配的合法 Action。"""
-        # 优先匹配基础动作类型
         for action in valid_actions:
             at = action.action_type
             if at == ActionType.FOLD and index == 0:
@@ -129,7 +128,7 @@ class Agent:
                 return action
             elif at == ActionType.LOOK and index == 7:
                 return action
-            elif at == ActionType.COMPARE and index == 0:
+            elif at == ActionType.COMPARE and index == 8:
                 return action
         # 兜底：返回第一个合法动作
         return valid_actions[0]

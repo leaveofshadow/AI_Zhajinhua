@@ -13,9 +13,8 @@ from .features import FEATURE_DIM
 
 __all__ = ["ZhaJinHuaNet"]
 
-# 动作空间大小: fold(0) + call(1) + raise_2x~6x(2-6) + look(7) = 8 个基础动作
-# compare 动作在推理时单独处理（选择目标后组合）
-POLICY_DIM = 8
+# 动作空间大小: fold(0) + call(1) + raise_2x~6x(2-6) + look(7) + compare(8) = 9
+POLICY_DIM = 9
 
 
 class ZhaJinHuaNet(nn.Module):
