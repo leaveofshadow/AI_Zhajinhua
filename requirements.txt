@@ -1,0 +1,16 @@
+# AI 训练
+torch>=2.0
+numpy
+
+# 游戏服务器
+fastapi
+uvicorn[standard]
+websockets
+pydantic
+
+# 训练监控
+tensorboard
+
+# 开发工具
+pytest
+pytest-cov

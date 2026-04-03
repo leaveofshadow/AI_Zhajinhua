@@ -1,0 +1,37 @@
+# 炸金花 AI 训练默认配置
+
+training:
+  learning_rate: 0.0003
+  gamma: 0.99
+  lambda_gae: 0.95
+  clip_epsilon: 0.2
+  entropy_coef: 0.01
+  value_coef: 0.5
+  batch_size: 256
+  num_episodes: 50000
+  eval_interval: 1000
+  epsilon_start: 0.3
+  epsilon_end: 0.05
+  max_grad_norm: 0.5
+
+game:
+  num_players: 4
+  initial_chips: 1000
+  min_bet: 10
+  min_compare_round: 2
+  max_rounds: 50
+
+model:
+  input_dim: 204
+  policy_dim: 8
+  shared_hidden: [256, 128]
+  head_hidden: 64
+
+opponent_pool:
+  max_size: 10
+  save_dir: "data/models/opponents"
+
+logging:
+  log_dir: "data/logs"
+  save_dir: "data/models"
+  tensorboard: true

@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+*.egg
+dist/
+build/
+.venv/
+venv/
+env/
+
+# AI training data
+data/models/
+data/logs/
+data/replays/
+
+# Node
+web/node_modules/
+web/dist/
+web/.vite/
+.vite/
+
+# Test
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+*.local
+
+# OMC / Claude
+.omc/
+.claude/
+.pytest_cache/
