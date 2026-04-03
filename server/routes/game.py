@@ -254,7 +254,7 @@ async def _process_ai_turns(room_id: str) -> None:
     if not room or not room.game or room.game.is_finished():
         return
 
-    max_ai_steps = 10  # 防止无限循环
+    max_ai_steps = 200  # 防止无限循环（max_rounds=50 × 4 玩家）
     for _ in range(max_ai_steps):
         if room.game.is_finished():
             break
