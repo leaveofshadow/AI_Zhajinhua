@@ -10,6 +10,7 @@ class SeatConfig(BaseModel):
     """座位配置。"""
     player_type: Literal["ai", "human"] = "ai"
     ai_model: Optional[str] = None
+    ai_level: Optional[Literal["easy", "medium"]] = None
     display_name: str = ""
 
 
