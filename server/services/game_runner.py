@@ -54,23 +54,26 @@ class GameRunner:
     ) -> Optional[Action]:
         """处理 AI 回合。
 
-        如果座位指定了模型路径且文件存在，使用训练好的 Agent；
-        否则使用加权随机策略。
+        根据 ai_level 选择策略：
+        - "medium" → 训练好的 PPO 模型
+        - "easy" 或 None → 加权随机策略
         """
         valid_actions = game.get_valid_actions(player_id)
         if not valid_actions:
             return None
 
-        # 尝试使用训练好的模型
         seat = seats[player_id] if player_id < len(seats) else None
-        if seat and seat.ai_model:
-            agent = self._get_agent(seat.ai_model)
+
+        # 中级 AI：使用训练好的模型
+        if seat and seat.ai_level == "medium":
+            model_path = seat.ai_model or "data/models/best_model.pt"
+            agent = self._get_agent(model_path)
             if agent is not None:
                 obs = game.get_observation(player_id)
                 action = agent.act(obs, valid_actions)
                 return action
 
-        # 回退到加权随机策略
+        # 初级 AI 或无指定：加权随机策略
         return await self._random_ai_turn(game, player_id, valid_actions)
 
     def _get_agent(self, model_path: str) -> Any:

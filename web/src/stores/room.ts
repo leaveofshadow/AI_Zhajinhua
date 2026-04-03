@@ -28,7 +28,7 @@ export const useRoomStore = defineStore('room', () => {
     initial_chips?: number
     min_bet?: number
     speed?: string
-    seats?: { player_type: string; display_name: string }[]
+    seats?: { player_type: string; display_name: string; ai_level?: string }[]
   }) {
     const res = await api.createRoom(config)
     currentRoom.value = res.data
