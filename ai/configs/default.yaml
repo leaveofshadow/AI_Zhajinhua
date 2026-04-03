@@ -23,7 +23,7 @@ game:
 
 model:
   input_dim: 204
-  policy_dim: 8
+  policy_dim: 9
   shared_hidden: [256, 128]
   head_hidden: 64
 

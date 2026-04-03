@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import random
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +13,8 @@ from engine.game import Game, GamePhase
 from server.schemas import SeatConfig
 from server.services.replay_store import ReplayStore
 
+logger = logging.getLogger(__name__)
+
 
 class GameRunner:
     """对局调度器。"""
@@ -18,6 +22,7 @@ class GameRunner:
     def __init__(self, replay_store: ReplayStore) -> None:
         self.replay_store = replay_store
         self._action_records: Dict[str, List[Dict]] = {}  # room_id -> records
+        self._agents: Dict[str, Any] = {}  # model_path -> Agent
 
     def start_game(
         self,
@@ -47,11 +52,53 @@ class GameRunner:
         player_id: int,
         seats: List[SeatConfig],
     ) -> Optional[Action]:
-        """处理 AI 回合（加权随机策略，后续替换为真实 AI）。"""
+        """处理 AI 回合。
+
+        如果座位指定了模型路径且文件存在，使用训练好的 Agent；
+        否则使用加权随机策略。
+        """
         valid_actions = game.get_valid_actions(player_id)
         if not valid_actions:
             return None
 
+        # 尝试使用训练好的模型
+        seat = seats[player_id] if player_id < len(seats) else None
+        if seat and seat.ai_model:
+            agent = self._get_agent(seat.ai_model)
+            if agent is not None:
+                obs = game.get_observation(player_id)
+                action = agent.act(obs, valid_actions)
+                return action
+
+        # 回退到加权随机策略
+        return await self._random_ai_turn(game, player_id, valid_actions)
+
+    def _get_agent(self, model_path: str) -> Any:
+        """获取或创建 AI Agent（带缓存）。"""
+        if model_path in self._agents:
+            return self._agents[model_path]
+
+        if not os.path.exists(model_path):
+            logger.warning(f"Model file not found: {model_path}")
+            return None
+
+        try:
+            from ai.agent import Agent as AIAgent
+            agent = AIAgent(model_path=model_path, epsilon=0.0)
+            self._agents[model_path] = agent
+            logger.info(f"Loaded AI model: {model_path}")
+            return agent
+        except Exception as e:
+            logger.error(f"Failed to load AI model {model_path}: {e}")
+            return None
+
+    async def _random_ai_turn(
+        self,
+        game: Game,
+        player_id: int,
+        valid_actions: List[Action],
+    ) -> Optional[Action]:
+        """加权随机策略（回退方案）。"""
         # 优先看牌（如果还没看）
         look_actions = [a for a in valid_actions if a.action_type == ActionType.LOOK]
         if look_actions and random.random() < 0.3:
@@ -61,22 +108,20 @@ class GameRunner:
         weights: list[float] = []
         for a in valid_actions:
             if a.action_type == ActionType.FOLD:
-                weights.append(1.0)       # 弃牌概率低
+                weights.append(1.0)
             elif a.action_type == ActionType.CALL:
-                weights.append(5.0)       # 跟注最常见
+                weights.append(5.0)
             elif a.action_type == ActionType.LOOK:
-                weights.append(0.0)       # 已处理
+                weights.append(0.0)
             elif ActionType.RAISE_2X <= a.action_type <= ActionType.RAISE_6X:
                 mult = int(a.action_type)
-                weights.append(max(0.5, 3.0 - mult * 0.5))  # 2x=2.0, 3x=1.5, ..., 6x=0.5
+                weights.append(max(0.5, 3.0 - mult * 0.5))
             elif a.action_type == ActionType.COMPARE:
-                # 轮数越多越倾向比牌
                 rc = game.state.round_count
                 weights.append(min(4.0, rc * 1.0))
             else:
                 weights.append(1.0)
 
-        # 加权随机
         total = sum(weights)
         r = random.uniform(0, total)
         cumulative = 0.0
