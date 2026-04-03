@@ -31,11 +31,30 @@ class Room:
         self.game: Optional[Game] = None
         self.connections: Dict[int, object] = {}  # player_id -> WebSocket
 
+        # 多回合对局状态
+        self.player_chips: List[int] = [self.initial_chips] * self.num_players
+        self.eliminated: List[bool] = [False] * self.num_players
+        self.session_round: int = 0
+        self.session_over: bool = False
+
     @property
     def phase(self) -> str:
         if self.game is None:
             return "waiting"
         return self.game.state.phase.name.lower()
+
+    @property
+    def active_players(self) -> List[int]:
+        """返回未淘汰的玩家索引列表。"""
+        return [i for i in range(self.num_players) if not self.eliminated[i]]
+
+    def reset_session(self) -> None:
+        """重置对局，筹码重新分配。"""
+        self.player_chips = [self.initial_chips] * self.num_players
+        self.eliminated = [False] * self.num_players
+        self.session_round = 0
+        self.session_over = False
+        self.game = None
 
     def to_response(self) -> RoomResponse:
         return RoomResponse(

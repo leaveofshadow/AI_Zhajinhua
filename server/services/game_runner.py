@@ -26,12 +26,16 @@ class GameRunner:
         initial_chips: int,
         min_bet: int,
         seats: List[SeatConfig],
+        player_chips: Optional[List[int]] = None,
+        eliminated: Optional[List[bool]] = None,
     ) -> Game:
         """创建并开始一局游戏。"""
         game = Game(
             num_players=num_players,
             initial_chips=initial_chips,
             min_bet=min_bet,
+            player_chips=player_chips,
+            eliminated=eliminated,
         )
         game.start()
         self._action_records[room_id] = []

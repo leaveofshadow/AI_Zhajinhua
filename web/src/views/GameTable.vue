@@ -2,6 +2,7 @@
   <div class="game-table">
     <div class="game-header">
       <span>房间: {{ $route.params.roomId }}</span>
+      <span v-if="gameStore.sessionRound > 0">第 {{ gameStore.sessionRound }} 回合</span>
       <span>轮数: {{ gameStore.roundCount }}</span>
       <span>存活: {{ gameStore.activePlayers }}</span>
     </div>
@@ -40,19 +41,25 @@
     <!-- 游戏结束弹窗 -->
     <el-dialog v-model="gameStore.gameOver" title="对局结束" width="500px" :show-close="false">
       <div class="end-header">
-        <span class="winner-name">{{ winnerName }} 获胜!</span>
+        <span v-if="gameStore.sessionOver" class="winner-name">对局结束! 最终赢家: {{ sessionWinnerName }}</span>
+        <span v-else class="winner-name">{{ winnerName }} 获胜!</span>
+        <div v-if="gameStore.sessionRound > 0" class="session-info">第 {{ gameStore.sessionRound }} 回合</div>
       </div>
 
       <!-- 所有玩家的手牌 -->
       <div class="all-hands">
-        <div v-for="(hand, i) in gameStore.allHands" :key="i" class="hand-row" :class="{ winner: hand.is_active }">
-          <div class="hand-name">{{ hand.name }}</div>
+        <div v-for="(hand, i) in gameStore.allHands" :key="i" class="hand-row"
+             :class="{ winner: hand.is_active, eliminated: gameStore.eliminated[i] }">
+          <div class="hand-name">
+            {{ hand.name }}
+            <span v-if="gameStore.eliminated[i]" class="elim-tag">已淘汰</span>
+          </div>
           <div class="hand-cards">
             <span v-for="(card, ci) in hand.cards" :key="ci" class="card-tag" :class="cardColor(card)">{{ card }}</span>
           </div>
           <div class="hand-type">{{ hand.hand_type }}</div>
           <div class="hand-chips">
-            筹码: {{ hand.chips }}
+            筹码: {{ gameStore.playerChips[i] !== undefined ? gameStore.playerChips[i] : hand.chips }}
             <span v-if="gameStore.chipChanges[i] !== undefined" :class="gameStore.chipChanges[i] >= 0 ? 'gain' : 'loss'">
               ({{ gameStore.chipChanges[i] >= 0 ? '+' : '' }}{{ gameStore.chipChanges[i] }})
             </span>
@@ -61,7 +68,8 @@
       </div>
 
       <div class="end-actions">
-        <el-button type="success" size="large" @click="startNewGame">再来一局</el-button>
+        <el-button v-if="gameStore.sessionOver" type="warning" size="large" @click="startNewSession">开新局</el-button>
+        <el-button v-else type="success" size="large" @click="startNewGame">再来一局</el-button>
         <el-button size="large" @click="backToLobby">返回大厅</el-button>
       </div>
     </el-dialog>
@@ -89,6 +97,16 @@ const winnerName = computed(() => {
   return '??'
 })
 
+const sessionWinnerName = computed(() => {
+  const chips = gameStore.playerChips
+  if (!chips.length) return '??'
+  const maxChips = Math.max(...chips)
+  const winnerIdx = chips.indexOf(maxChips)
+  const hands = gameStore.allHands
+  if (winnerIdx >= 0 && winnerIdx < hands.length) return hands[winnerIdx].name
+  return `P${winnerIdx}`
+})
+
 function cardColor(card: string) {
   const s = card.slice(-1)
   return s === '♥' || s === '♦' ? 'red-suit' : 'black-suit'
@@ -109,6 +127,10 @@ function handleAction(action: string, multiplier?: number, target?: number) {
 
 function startNewGame() {
   gameStore.startNewGame()
+}
+
+function startNewSession() {
+  gameStore.startNewSession()
 }
 
 function backToLobby() {
@@ -134,6 +156,7 @@ function backToLobby() {
 /* 结束弹窗 */
 .end-header { text-align: center; margin-bottom: 20px; }
 .winner-name { font-size: 22px; color: #ffd700; font-weight: bold; }
+.session-info { font-size: 14px; color: #888; margin-top: 6px; }
 .all-hands { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
 .hand-row {
   display: flex; align-items: center; gap: 16px;
@@ -143,7 +166,9 @@ function backToLobby() {
   border: 1px solid #3a5a4a;
 }
 .hand-row.winner { border-color: #ffd700; background: rgba(255,215,0,0.1); }
+.hand-row.eliminated { opacity: 0.5; border-color: #e94560; }
 .hand-name { width: 80px; font-weight: bold; color: #e0e0e0; }
+.elim-tag { font-size: 11px; color: #e94560; margin-left: 4px; }
 .hand-cards { display: flex; gap: 6px; }
 .card-tag {
   padding: 2px 8px;
