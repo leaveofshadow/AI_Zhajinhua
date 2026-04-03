@@ -68,6 +68,7 @@ class GameState:
     __slots__ = (
         "num_players", "initial_chips", "min_bet",
         "min_compare_round", "max_rounds",
+        "player_chips", "eliminated",
         "phase", "players", "pot", "current_bet",
         "current_player_idx", "round_count", "action_history",
         "_deck", "_round_action_count", "_starting_player_idx",
@@ -80,6 +81,8 @@ class GameState:
         min_bet: int = 10,
         min_compare_round: int = 2,
         max_rounds: int = 50,
+        player_chips: Optional[List[int]] = None,
+        eliminated: Optional[List[bool]] = None,
     ) -> None:
         if not (3 <= num_players <= 6):
             raise ValueError(f"num_players must be 3-6, got {num_players}")
@@ -89,6 +92,8 @@ class GameState:
         self.min_bet: int = min_bet
         self.min_compare_round: int = min_compare_round
         self.max_rounds: int = max_rounds
+        self.player_chips: Optional[List[int]] = player_chips
+        self.eliminated: Optional[List[bool]] = eliminated
 
         self.phase: GamePhase = GamePhase.WAITING
         self.players: List[PlayerState] = []
@@ -122,6 +127,8 @@ class Game:
         min_compare_round: int = 2,
         max_rounds: int = 50,
         seed: Optional[int] = None,
+        player_chips: Optional[List[int]] = None,
+        eliminated: Optional[List[bool]] = None,
     ) -> None:
         self.state = GameState(
             num_players=num_players,
@@ -129,6 +136,8 @@ class Game:
             min_bet=min_bet,
             min_compare_round=min_compare_round,
             max_rounds=max_rounds,
+            player_chips=player_chips,
+            eliminated=eliminated,
         )
         self._seed = seed
 
@@ -136,29 +145,46 @@ class Game:
         """发牌并开始牌局。"""
         state = self.state
 
-        # 初始化玩家
-        state.players = [
-            PlayerState(chips=state.initial_chips)
-            for _ in range(state.num_players)
-        ]
+        # 初始化玩家（支持自定义筹码）
+        if state.player_chips:
+            state.players = [PlayerState(chips=c) for c in state.player_chips]
+        else:
+            state.players = [
+                PlayerState(chips=state.initial_chips)
+                for _ in range(state.num_players)
+            ]
 
-        # 洗牌发牌
+        # 标记被淘汰的玩家
+        if state.eliminated:
+            for i, elim in enumerate(state.eliminated):
+                if elim and i < len(state.players):
+                    state.players[i].is_active = False
+
+        # 洗牌发牌（只给活跃玩家发牌）
         state._deck = Deck(seed=self._seed)
         for p in state.players:
-            p.cards = state._deck.deal(3)
+            if p.is_active:
+                p.cards = state._deck.deal(3)
 
-        # 底注：每人投入 min_bet
+        # 底注：只从活跃玩家收取
         for p in state.players:
-            ante = min(state.min_bet, p.chips)
-            p.chips -= ante
-            p.total_bet += ante
-            state.pot += ante
+            if p.is_active:
+                ante = min(state.min_bet, p.chips)
+                p.chips -= ante
+                p.total_bet += ante
+                state.pot += ante
 
         state.current_bet = state.min_bet
-        state.current_player_idx = 0
+        # 找到第一个活跃玩家作为起始玩家
+        first_active = 0
+        for i, p in enumerate(state.players):
+            if p.is_active:
+                first_active = i
+                break
+        state.current_player_idx = first_active
         state.round_count = 0
         state._round_action_count = 0
-        state._starting_player_idx = 0
+        state._starting_player_idx = first_active
         state.action_history = []
         state.phase = GamePhase.PLAYING
 

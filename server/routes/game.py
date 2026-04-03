@@ -75,9 +75,29 @@ async def websocket_game(websocket: WebSocket, room_id: str):
         while True:
             data = await websocket.receive_json()
 
-            # 游戏结束后，支持 new_game 重新开局
+            # 游戏结束后，支持 new_game / new_session
             if room.game is None or room.game.is_finished():
-                if data.get("action") == "new_game":
+                if data.get("action") == "new_session":
+                    room.reset_session()
+                    await _maybe_start_game(room_id)
+                    if room.game and not room.game.is_finished():
+                        for pid, ws in room.connections.items():
+                            obs = room.game.get_observation(pid)
+                            try:
+                                await ws.send_json({
+                                    "event": "game_start",
+                                    "position": pid,
+                                    "state": _serialize_observation(obs, pid, room.seats),
+                                    "current_player": room.game.state.current_player_idx,
+                                })
+                            except Exception:
+                                pass
+                        await _process_ai_turns(room_id)
+                        if room.game.is_finished():
+                            await _handle_game_end(room_id)
+                        else:
+                            await _notify_current_human(room_id)
+                elif data.get("action") == "new_game":
                     await _start_new_game(room_id, websocket, player_id)
                 continue
 
@@ -134,13 +154,26 @@ async def _start_new_game(room_id: str, websocket, player_id: int) -> None:
     if not room:
         return
 
-    # 重新开始游戏
+    # 对局已结束，不能再开新回合
+    if room.session_over:
+        await websocket.send_json({
+            "event": "error",
+            "message": "Session is over. Start a new session.",
+        })
+        return
+
+    # 递增回合数
+    room.session_round += 1
+
+    # 使用上一回合结束时的筹码和淘汰状态
     room.game = _game_runner.start_game(
         room_id=room_id,
         num_players=room.num_players,
         initial_chips=room.initial_chips,
         min_bet=room.min_bet,
         seats=room.seats,
+        player_chips=room.player_chips,
+        eliminated=room.eliminated,
     )
 
     # 通知所有玩家
@@ -202,6 +235,9 @@ async def _maybe_start_game(room_id: str) -> None:
         if seat.player_type == "human" and i not in room.connections:
             return  # 还有人在等待连接
 
+    # 首局初始化 session
+    room.session_round = 1
+
     # 开始游戏
     room.game = _game_runner.start_game(
         room_id=room_id,
@@ -218,7 +254,7 @@ async def _process_ai_turns(room_id: str) -> None:
     if not room or not room.game or room.game.is_finished():
         return
 
-    max_ai_steps = 10  # 防止无限循环
+    max_ai_steps = 200  # 防止无限循环（max_rounds=50 × 4 玩家）
     for _ in range(max_ai_steps):
         if room.game.is_finished():
             break
@@ -305,6 +341,10 @@ async def _handle_game_end(room_id: str) -> None:
         "chip_changes": result.chip_changes,
         "all_hands": all_hands,
         "replay_id": replay_id,
+        "session_round": room.session_round,
+        "player_chips": room.player_chips,
+        "eliminated": room.eliminated,
+        "session_over": room.session_over,
     }
 
     for pid, ws in room.connections.items():
@@ -312,6 +352,17 @@ async def _handle_game_end(room_id: str) -> None:
             await ws.send_json(end_event)
         except Exception:
             pass
+
+    # 更新 room 的累计筹码和淘汰状态
+    for i, p in enumerate(room.game.state.players):
+        room.player_chips[i] = p.chips
+        if p.chips <= 0:
+            room.eliminated[i] = True
+
+    # 检查是否只剩一个玩家有筹码
+    active_count = sum(1 for e in room.eliminated if not e)
+    if active_count <= 1:
+        room.session_over = True
 
     # 不立即清除 game，等下一局开始时重置
     room.game = None

@@ -28,6 +28,11 @@ export const useGameStore = defineStore('game', () => {
   const winner = ref(-1)
   const chipChanges = ref<number[]>([])
   const allHands = ref<any[]>([])
+  const playerChips = ref<number[]>([])
+  const sessionRound = ref(0)
+  const sessionOver = ref(false)
+  const eliminated = ref<boolean[]>([])
+  const replayId = ref('')
 
   function connectGame(room: string) {
     roomId.value = room
@@ -70,6 +75,11 @@ export const useGameStore = defineStore('game', () => {
       winner.value = data.winner
       chipChanges.value = data.chip_changes
       allHands.value = data.all_hands ?? []
+      playerChips.value = data.player_chips ?? []
+      sessionRound.value = data.session_round ?? 0
+      sessionOver.value = data.session_over ?? false
+      eliminated.value = data.eliminated ?? []
+      replayId.value = data.replay_id ?? ''
     })
 
     gameWs.on('error', (data: any) => {
@@ -102,12 +112,31 @@ export const useGameStore = defineStore('game', () => {
     gameWs.send({ action: 'new_game' })
   }
 
+  function startNewSession() {
+    gameOver.value = false
+    winner.value = -1
+    allHands.value = []
+    actionLog.value = []
+    myCards.value = []
+    hasLooked.value = false
+    roundCount.value = 0
+    sessionRound.value = 0
+    sessionOver.value = false
+    playerChips.value = []
+    eliminated.value = []
+    gameWs.send({ action: 'new_session' })
+  }
+
   function reset() {
     connected.value = false
     gameOver.value = false
     winner.value = -1
     allHands.value = []
     actionLog.value = []
+    sessionRound.value = 0
+    sessionOver.value = false
+    playerChips.value = []
+    eliminated.value = []
     gameWs.disconnect()
   }
 
@@ -115,6 +144,7 @@ export const useGameStore = defineStore('game', () => {
     connected, roomId, myPosition, myCards, hasLooked, myChips,
     pot, currentBet, roundCount, activePlayers, currentPlayer,
     playerStates, actionLog, gameOver, winner, chipChanges, allHands,
-    connectGame, sendAction, reset, startNewGame,
+    playerChips, sessionRound, sessionOver, eliminated, replayId,
+    connectGame, sendAction, reset, startNewGame, startNewSession,
   }
 })
